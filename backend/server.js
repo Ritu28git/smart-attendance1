@@ -95,6 +95,12 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/.netlify/functions/api/api/auth/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Auth test route working",
+  });
+});
 // Local development server startup
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
