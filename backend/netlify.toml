@@ -1,17 +1,8 @@
 
 [build]
-  command = "npm install"
+  base = "backend"
   functions = "netlify/functions"
+  publish = "."
 
 [functions]
   node_bundler = "esbuild"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
