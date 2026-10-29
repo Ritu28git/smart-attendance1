@@ -22,13 +22,13 @@ export default function ForgotPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
+      
+      const data = await readResponse(
+  response,
+  "Unable to send reset link"
+);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to send reset link");
-      }
-
+      
       setMessage(
         data.message ||
           "If an account exists for this email, a reset link will be sent."

@@ -72,6 +72,15 @@ app.use(async (req, res, next) => {
   }
 });
 
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "Smart Attendance API is running",
+  });
+});
+
+
 // Routes
 const authRoutes = require("./router/authRoutrts");
 const attendanceRoutes = require("./router/attendanceRoutes");

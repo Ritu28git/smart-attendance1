@@ -1,5 +1,5 @@
-// Centralized API configuration
-// Production backend hosted on Netlify
+
+ // Centralized API configuration
 
 const DEFAULT_BASE = "https://smart-attendance-api.netlify.app";
 
@@ -10,12 +10,12 @@ const rawUrl = (
   .replace(/\/+$/, "");
 
 // Base backend URL (without trailing /api)
-export const BACKEND_BASE = rawUrl.replace(/\/api$/, "");
+export const BACKEND_BASE = rawUrl.replace(/\/api$/i, "");
 
 // API URL (with /api suffix)
 export const API_URL = `${BACKEND_BASE}/api`;
 
-// Safe response reader to prevent "Unexpected token <" syntax errors
+// Safe response reader
 export async function readResponse(
   response,
   fallbackMsg = "Request failed"
