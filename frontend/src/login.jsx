@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_URL, readResponse } from "./apiConfig";
 import {
   Building2,
   Eye,
@@ -26,7 +27,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch("https://yunify-attendance-backend.netlify.app/api/auth/login",  {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

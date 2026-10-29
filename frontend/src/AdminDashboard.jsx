@@ -28,7 +28,7 @@ import {
   MapPin,
 } from "lucide-react";
 
-const API = "https://yunify-attendance-backend.netlify.app";
+import { API_URL as API, BACKEND_BASE, readResponse } from "./apiConfig";
 
 const getToken = () => localStorage.getItem("token");
 
@@ -157,11 +157,8 @@ const [showEditForm, setShowEditForm] = useState(false);
         return;
       }
 
-      const ed = await er.json();
-      const ad = await ar.json();
-
-      if (!er.ok) throw new Error(ed.message || "Failed to load employees.");
-      if (!ar.ok) throw new Error(ad.message || "Failed to load attendance records.");
+      const ed = await readResponse(er, "Failed to load employees");
+      const ad = await readResponse(ar, "Failed to load attendance records");
 
       setEmployees(ed.employees || []);
       setRecords(ad.records || []);
@@ -190,15 +187,13 @@ const [showEditForm, setShowEditForm] = useState(false);
       const response = await fetch(`${API}/attendance/admin/live-locations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await response.json();
 
       if (response.status === 401) {
         handleLogout();
         return;
       }
-      if (!response.ok) {
-        throw new Error(data.message || "Locations load nahi hui.");
-      }
+
+      const data = await readResponse(response, "Locations load nahi hui");
 
       setLiveLocations(data.employees || data.locations || data.data || []);
     } catch (e) {
@@ -407,11 +402,7 @@ async function addEmployee(event) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to register employee.");
-    }
+    const data = await readResponse(response, "Failed to register employee");
 
     setMessage(
       "Employee registered successfully. Face descriptor saved to MongoDB."
@@ -1010,12 +1001,12 @@ async function addEmployee(event) {
                               {r.photoPath ? (
                                 <button
                                   type="button"
-                                  onClick={() => setSelectedPhoto(`https://yunify-attendance-backend.netlify.app/api${r.photoPath}`)}
+                                  onClick={() => setSelectedPhoto(`${BACKEND_BASE}${r.photoPath}`)}
                                   className="group relative flex h-10 w-10 overflow-hidden rounded-xl border border-indigo-200 shadow-xs transition hover:scale-105"
                                   title="Click to view live selfie"
                                 >
                                   <img
-                                    src={`https://yunify-attendance-backend.netlify.app/api${r.photoPath}`}
+                                    src={`${BACKEND_BASE}${r.photoPath}`}
                                     alt="Live selfie"
                                     className="h-full w-full object-cover"
                                   />
@@ -1251,11 +1242,7 @@ onSubmit={async (e) => {
       }
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to update employee.");
-    }
+    const data = await readResponse(response, "Failed to update employee");
 
     setEmployees((old) =>
       old.map((emp) =>

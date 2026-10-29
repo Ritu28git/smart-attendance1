@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-const API = import.meta.env.VITE_API_URL || "https://yunify-attendance-backend.netlify.app/api";
+import { API_URL as API, readResponse } from "./apiConfig";
 
 export default function ResetPassword() {
   const { token } = useParams();

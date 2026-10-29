@@ -81,7 +81,7 @@ router.post("/login", async (req, res) => {
     console.error("LOGIN ERROR DETAILS:", error);
     return res.status(500).json({
       success: false,
-      message: "Login failed due to a server error",
+      message: error.message || "Login failed due to a server error",
     });
   }
 });
