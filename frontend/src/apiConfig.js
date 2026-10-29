@@ -1,8 +1,13 @@
 // Centralized API configuration
-// Local development backend default: http://localhost:5000
-const DEFAULT_BASE = "http://localhost:5000";
+// Production backend hosted on Netlify
 
-const rawUrl = (import.meta.env.VITE_API_URL || DEFAULT_BASE).trim().replace(/\/+$/, "");
+const DEFAULT_BASE = "https://smart-attendance-api.netlify.app";
+
+const rawUrl = (
+  import.meta.env.VITE_API_URL || DEFAULT_BASE
+)
+  .trim()
+  .replace(/\/+$/, "");
 
 // Base backend URL (without trailing /api)
 export const BACKEND_BASE = rawUrl.replace(/\/api$/, "");
@@ -11,8 +16,12 @@ export const BACKEND_BASE = rawUrl.replace(/\/api$/, "");
 export const API_URL = `${BACKEND_BASE}/api`;
 
 // Safe response reader to prevent "Unexpected token <" syntax errors
-export async function readResponse(response, fallbackMsg = "Request failed") {
+export async function readResponse(
+  response,
+  fallbackMsg = "Request failed"
+) {
   let data = {};
+
   try {
     data = await response.json();
   } catch {
@@ -21,9 +30,7 @@ export async function readResponse(response, fallbackMsg = "Request failed") {
 
   if (!response.ok) {
     throw new Error(
-      data.message ||
-      data.error ||
-      `${fallbackMsg} (status: ${response.status})`
+      data.message || data.error || fallbackMsg
     );
   }
 
