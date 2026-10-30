@@ -1192,7 +1192,13 @@ async function addEmployee(event) {
               <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 sm:p-4">
                 <div className="mb-2 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
                 <p className="mb-2 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
-                <video ref={enrollmentVideoRef} autoPlay muted playsInline style={{ height: "40px", minHeight: "40px", maxHeight: "40px", width: "100%", maxWidth: "320px", marginInline: "auto", display: "block" }} className="mb-3 block rounded-xl bg-slate-950 object-cover" />
+                <video
+  ref={enrollmentVideoRef}
+  autoPlay
+  muted
+  playsInline
+  className="mb-3 h-40 w-full max-w-md mx-auto rounded-xl bg-slate-950 object-cover"
+/>
                 {faceStatus && <p className="mb-3 text-xs text-slate-700" role="status">{faceStatus}</p>}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={startEnrollmentCamera} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800"><Camera size={15}/> Open Camera</button>
