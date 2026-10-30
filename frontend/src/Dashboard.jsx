@@ -69,6 +69,23 @@ function getTodayIST() {
   }).format(new Date());
 }
 
+function getAttendanceDateKey(record) {
+  if (record?.date) {
+    const rawDate = String(record.date);
+    if (/^\\d{4}-\\d{2}-\\d{2}/.test(rawDate)) return rawDate.slice(0, 10);
+  }
+  const value = record?.checkIn || record?.date;
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function isSundayToday() {
   const dayStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", weekday: "short" });
   return dayStr === "Sun";
@@ -113,6 +130,7 @@ export default function Dashboard() {
   // Navigation tab state: 'dashboard' | 'attendance' | 'profile' | 'history' | 'settings'
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchHistory, setSearchHistory] = useState("");
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   // Sidebar responsive state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -682,6 +700,24 @@ const openCamera = useCallback(async (action) => {
       (r.status && r.status.toLowerCase().includes(term))
     );
   });
+
+  // Calendar uses the attendance records returned for the logged-in employee.
+  const calendarYear = calendarMonth.getFullYear();
+  const calendarMonthIndex = calendarMonth.getMonth();
+  const calendarDaysInMonth = new Date(calendarYear, calendarMonthIndex + 1, 0).getDate();
+  const calendarStartDay = new Date(calendarYear, calendarMonthIndex, 1).getDay();
+  const attendanceByDate = records.reduce((map, record) => {
+    const dateKey = getAttendanceDateKey(record);
+    if (dateKey) map[dateKey] = record;
+    return map;
+  }, {});
+  const calendarCells = [
+    ...Array(calendarStartDay).fill(null),
+    ...Array.from({ length: calendarDaysInMonth }, (_, index) => index + 1),
+  ];
+  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
+  const getCalendarDateKey = (day) =>
+    `${calendarYear}-${String(calendarMonthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-violet-100/70 via-indigo-50/80 to-purple-100/70 text-slate-900 font-sans antialiased">
@@ -1284,7 +1320,66 @@ const openCamera = useCallback(async (action) => {
 
             {/* TAB 2 & 4: ATTENDANCE & HISTORY VIEW */}
             {(activeTab === "attendance" || activeTab === "history") && (
-              <section className="overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30 backdrop-blur-xs">
+              <>
+                {activeTab === "attendance" && (
+                  <section className="mb-6 rounded-3xl border border-indigo-100/70 bg-white/95 p-5 shadow-md shadow-indigo-100/30 sm:p-6">
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900 sm:text-xl">My Attendance Calendar</h2>
+                        <p className="mt-1 text-xs text-slate-500">Your monthly attendance overview</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setCalendarMonth(new Date(calendarYear, calendarMonthIndex - 1, 1))} className="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50" aria-label="Previous month">
+                          <ChevronLeft size={18} />
+                        </button>
+                        <span className="min-w-32 text-center text-sm font-bold text-slate-800">
+                          {calendarMonth.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+                        </span>
+                        <button type="button" onClick={() => setCalendarMonth(new Date(calendarYear, calendarMonthIndex + 1, 1))} className="rounded-xl border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50" aria-label="Next month">
+                          <ChevronRight size={18} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mb-3 grid grid-cols-7 gap-2 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-2">{day}</div>)}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2">
+                      {calendarCells.map((day, index) => {
+                        if (!day) return <div key={`empty-${index}`} className="min-h-16 rounded-xl bg-slate-50/60 sm:min-h-20" />;
+                        const dateKey = getCalendarDateKey(day);
+                        const record = attendanceByDate[dateKey];
+                        const isToday = dateKey === getTodayIST();
+                        const statusLabel = record
+                          ? record.checkOut ? "Completed" : record.lunchStart && !record.lunchEnd ? "On Lunch" : record.checkIn ? "Present" : "Recorded"
+                          : "";
+                        const statusClass = record
+                          ? record.checkOut
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : record.lunchStart && !record.lunchEnd
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700"
+                          : "border-slate-100 bg-white text-slate-500";
+                        return (
+                          <div key={dateKey} className={`flex min-h-16 flex-col items-center justify-center rounded-xl border p-1.5 sm:min-h-20 ${statusClass} ${isToday ? "ring-2 ring-indigo-500 ring-offset-1" : ""}`} title={record ? `${statusLabel} • Check in: ${formatTime(record.checkIn)}` : "No attendance record"}>
+                            <span className="text-sm font-bold">{day}</span>
+                            {statusLabel && <span className="mt-1 text-[9px] font-bold sm:text-[10px]">{statusLabel}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3 text-[11px] font-semibold text-slate-600">
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Present</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Completed</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> On Lunch</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-slate-300 bg-white" /> No Record</span>
+                    </div>
+                  </section>
+                )}
+
+                <section className="overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30 backdrop-blur-xs">
                 <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-6">
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">
@@ -1387,6 +1482,7 @@ const openCamera = useCallback(async (action) => {
                   </table>
                 </div>
               </section>
+              </>
             )}
 
             {/* TAB 3: MY PROFILE VIEW */}
@@ -1516,14 +1612,15 @@ const openCamera = useCallback(async (action) => {
             </div>
 
             <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-inner">
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                onLoadedMetadata={() => setCameraReady(true)}
-                className="h-full w-full object-cover"
-              />
+             <video
+                      ref={videoRef}
+                       autoPlay
+                          muted
+                           playsInline
+                             onLoadedMetadata={() => setCameraReady(true)}
+                              className="h-full w-full object-cover"
+                              style={{ transform: "scaleX(1)" }}
+                         />
               {!cameraReady && !cameraError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-xs text-slate-300">
                   <RefreshCw size={18} className="mr-2 animate-spin text-blue-500" /> Connecting to camera...
