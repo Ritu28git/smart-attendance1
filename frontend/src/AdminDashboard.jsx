@@ -1121,8 +1121,8 @@ async function addEmployee(event) {
 
       {/* Add Employee Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-xs">
-          <div className="my-8 w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-3 sm:p-4 backdrop-blur-xs">
+          <div className="my-3 sm:my-6 w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-3xl bg-white p-4 sm:p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Add New Employee</h2>
@@ -1189,10 +1189,10 @@ async function addEmployee(event) {
 </div>
                 </label>
               ))}
-              <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
-                <p className="mb-3 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
-                <video ref={enrollmentVideoRef} autoPlay muted playsInline className="mb-3 aspect-video max-h-56 w-full rounded-xl bg-slate-950 object-cover" />
+              <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 sm:p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
+                <p className="mb-2 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
+                <video ref={enrollmentVideoRef} autoPlay muted playsInline style={{ height: "40px", minHeight: "40px", maxHeight: "40px", width: "100%", maxWidth: "320px", marginInline: "auto", display: "block" }} className="mb-3 block rounded-xl bg-slate-950 object-cover" />
                 {faceStatus && <p className="mb-3 text-xs text-slate-700" role="status">{faceStatus}</p>}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={startEnrollmentCamera} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800"><Camera size={15}/> Open Camera</button>
@@ -1200,7 +1200,7 @@ async function addEmployee(event) {
                   <button type="button" onClick={() => { setFaceDescriptor(null); setFaceStatus("Face capture reset karein."); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Retake</button>
                 </div>
               </div>
-              <div className="mt-2 flex justify-end gap-3 sm:col-span-2">
+              <div className="mt-2 flex flex-wrap justify-end gap-3 sm:col-span-2">
                 <button
                   type="button"
                   onClick={() => { stopEnrollmentCamera(); setFaceDescriptor(null); setShowForm(false); }}
