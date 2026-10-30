@@ -121,6 +121,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [records, setRecords] = useState([]);
+  const [events, setEvents] = useState([]);
   const [todayRecord, setTodayRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -221,6 +222,31 @@ export default function Dashboard() {
         ? data.attendance
         : [];
       setRecords(list);
+
+      // Load admin-created company events and holidays for the employee calendar.
+      // This is kept separate so a missing events endpoint does not break attendance loading.
+      try {
+        const eventsResponse = await fetch(`${API}/events`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (eventsResponse.ok) {
+          const eventsData = await eventsResponse.json().catch(() => ({}));
+          const eventList = Array.isArray(eventsData)
+            ? eventsData
+            : Array.isArray(eventsData.events)
+            ? eventsData.events
+            : Array.isArray(eventsData.data)
+            ? eventsData.data
+            : [];
+          setEvents(eventList);
+        } else {
+          console.warn("Could not load calendar events:", eventsResponse.status);
+          setEvents([]);
+        }
+      } catch (eventsError) {
+        console.warn("Could not load calendar events:", eventsError);
+        setEvents([]);
+      }
 
       const todayStr = getTodayIST();
       const currentToday = list.find(item => {
@@ -709,6 +735,15 @@ const openCamera = useCallback(async (action) => {
   const attendanceByDate = records.reduce((map, record) => {
     const dateKey = getAttendanceDateKey(record);
     if (dateKey) map[dateKey] = record;
+    return map;
+  }, {});
+  const eventsByDate = events.reduce((map, event) => {
+    const rawDate = event?.date || event?.eventDate || event?.startDate || "";
+    const dateKey = String(rawDate).slice(0, 10);
+    if (dateKey) {
+      if (!map[dateKey]) map[dateKey] = [];
+      map[dateKey].push(event);
+    }
     return map;
   }, {});
   const calendarCells = [
@@ -1350,21 +1385,46 @@ const openCamera = useCallback(async (action) => {
                         if (!day) return <div key={`empty-${index}`} className="min-h-16 rounded-xl bg-slate-50/60 sm:min-h-20" />;
                         const dateKey = getCalendarDateKey(day);
                         const record = attendanceByDate[dateKey];
+                        const dayEvents = eventsByDate[dateKey] || [];
+                        const holiday = dayEvents.find((event) => String(event.type || "").toLowerCase() === "holiday");
                         const isToday = dateKey === getTodayIST();
-                        const statusLabel = record
-                          ? record.checkOut ? "Completed" : record.lunchStart && !record.lunchEnd ? "On Lunch" : record.checkIn ? "Present" : "Recorded"
+                        const isSunday = new Date(`${dateKey}T12:00:00`).getDay() === 0;
+                        const isPastWorkday = dateKey < getTodayIST() && !isSunday;
+                        const attendanceLabel = record?.checkIn
+                          ? "Present"
+                          : !holiday && isPastWorkday
+                          ? "Absent"
                           : "";
-                        const statusClass = record
-                          ? record.checkOut
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : record.lunchStart && !record.lunchEnd
-                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                            : "border-blue-200 bg-blue-50 text-blue-700"
+                        const statusClass = holiday
+                          ? "border-purple-200 bg-purple-50 text-purple-800"
+                          : record?.checkIn
+                          ? "border-blue-200 bg-blue-50 text-blue-700"
+                          : attendanceLabel === "Absent"
+                          ? "border-red-200 bg-red-50 text-red-700"
                           : "border-slate-100 bg-white text-slate-500";
+                        const eventNames = dayEvents
+                          .map((event) => event.title || event.name || event.eventName || "Event")
+                          .join(", ");
+                        const tooltipParts = [
+                          attendanceLabel,
+                          ...dayEvents.map((event) => `${event.type || "Event"}: ${event.title || event.name || "Untitled"}`),
+                          record?.checkIn ? `Check in: ${formatTime(record.checkIn)}` : "",
+                        ].filter(Boolean);
                         return (
-                          <div key={dateKey} className={`flex min-h-16 flex-col items-center justify-center rounded-xl border p-1.5 sm:min-h-20 ${statusClass} ${isToday ? "ring-2 ring-indigo-500 ring-offset-1" : ""}`} title={record ? `${statusLabel} • Check in: ${formatTime(record.checkIn)}` : "No attendance record"}>
+                          <div key={dateKey} className={`flex min-h-20 flex-col items-center justify-center gap-0.5 rounded-xl border p-1.5 sm:min-h-24 ${statusClass} ${isToday ? "ring-2 ring-indigo-500 ring-offset-1" : ""}`} title={tooltipParts.join(" • ") || "No attendance record"}>
                             <span className="text-sm font-bold">{day}</span>
-                            {statusLabel && <span className="mt-1 text-[9px] font-bold sm:text-[10px]">{statusLabel}</span>}
+                            {attendanceLabel && <span className="text-[9px] font-extrabold sm:text-[10px]">{attendanceLabel}</span>}
+                            {dayEvents.map((event, eventIndex) => {
+                              const isHoliday = String(event.type || "").toLowerCase() === "holiday";
+                              return (
+                                <span
+                                  key={event._id || `${dateKey}-${eventIndex}`}
+                                  className={`max-w-full truncate text-[8px] font-bold sm:text-[9px] ${isHoliday ? "text-purple-700" : "text-indigo-700"}`}
+                                >
+                                  {isHoliday ? "Holiday" : (event.title || event.name || "Event")}
+                                </span>
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -1372,9 +1432,9 @@ const openCamera = useCallback(async (action) => {
 
                     <div className="mt-5 flex flex-wrap gap-3 text-[11px] font-semibold text-slate-600">
                       <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Present</span>
-                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Completed</span>
-                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> On Lunch</span>
-                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-slate-300 bg-white" /> No Record</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Absent</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-purple-500" /> Holiday</span>
+                      <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> Event</span>
                     </div>
                   </section>
                 )}
