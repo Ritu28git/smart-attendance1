@@ -749,7 +749,7 @@ async function addEmployee(event) {
                     </form>
                   )}
 
-                  <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                  <div className="grid grid-cols-7 gap-1 ">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className={`py-2 text-center text-xs font-bold ${day === "Sun" ? "text-red-600" : "text-slate-500"}`}>{day}</div>)}
                     {getCalendarDays().map((day, index) => {
                       if (!day) return <div key={`empty-${index}`} className="min-h-14 rounded-xl bg-slate-50/60 sm:min-h-16"/>;
@@ -758,7 +758,7 @@ async function addEmployee(event) {
                       const today = dateKey === new Date().toLocaleDateString("en-CA");
                       const dayEvents = events.filter((item) => item.date === dateKey);
                       return <div key={dateKey} className={`min-h-14 overflow-hidden rounded-xl border p-1 sm:min-h-16 sm:p-1.5 ${sunday ? "border-red-100 bg-red-50" : "border-slate-100 bg-white"} ${today ? "ring-2 ring-violet-400" : ""}`}>
-                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${sunday ? "bg-red-100 text-red-700" : "text-slate-700"}`}>{day}</div>
+                        <div className={`flex h-5 w-5  items-center justify-center rounded-full text-xs font-bold ${sunday ? "bg-red-100 text-red-700" : "text-slate-700"}`}>{day}</div>
                         {sunday && <div className="mt-1 text-[10px] font-semibold text-red-600">Sunday off</div>}
                         {dayEvents.map((item) => <div key={item.id} title={item.title} className={`mt-1 truncate rounded px-1 py-0.5 text-[10px] font-semibold ${item.type === "holiday" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{item.title}</div>)}
                       </div>;
@@ -882,7 +882,7 @@ async function addEmployee(event) {
             {/* LIVE EMPLOYEE LOCATIONS */}
             {(activeTab === "dashboard" || activeTab === "employees") && (
               <section className="mt-6 overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30">
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-3">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Live Employee Locations</h2>
                     <p className="mt-1 text-xs text-slate-500">
@@ -892,7 +892,7 @@ async function addEmployee(event) {
                   <button
                     type="button"
                     onClick={loadLiveLocations}
-                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700"
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-1 text-xs font-bold text-white hover:bg-indigo-700"
                   >
                     <RefreshCw size={14} /> Refresh Locations
                   </button>
