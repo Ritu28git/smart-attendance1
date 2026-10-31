@@ -756,7 +756,7 @@ async function addEmployee(event) {
     return (
       <div
         key={`empty-${index}`}
-        className="h-9 min-h-0 rounded-lg bg-slate-50/60"
+        className="h-14 min-h-0 rounded-lg bg-slate-50/60"
       />
     );
   }
