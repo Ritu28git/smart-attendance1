@@ -752,12 +752,12 @@ async function addEmployee(event) {
                   <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className={`py-2 text-center text-xs font-bold ${day === "Sun" ? "text-red-600" : "text-slate-500"}`}>{day}</div>)}
                     {getCalendarDays().map((day, index) => {
-                      if (!day) return <div key={`empty-${index}`} className="min-h-16 rounded-xl bg-slate-50/60 sm:min-h-20" />;
+                      if (!day) return <div key={`empty-${index}`} className="min-h-14 rounded-xl bg-slate-50/60 sm:min-h-16"/>;
                       const dateKey = formatCalendarDate(day);
                       const sunday = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day).getDay() === 0;
                       const today = dateKey === new Date().toLocaleDateString("en-CA");
                       const dayEvents = events.filter((item) => item.date === dateKey);
-                      return <div key={dateKey} className={`min-h-16 overflow-hidden rounded-xl border p-1.5 sm:min-h-20 sm:p-2 ${sunday ? "border-red-100 bg-red-50" : "border-slate-100 bg-white"} ${today ? "ring-2 ring-violet-400" : ""}`}>
+                      return <div key={dateKey} className={`min-h-14 overflow-hidden rounded-xl border p-1 sm:min-h-16 sm:p-1.5 ${sunday ? "border-red-100 bg-red-50" : "border-slate-100 bg-white"} ${today ? "ring-2 ring-violet-400" : ""}`}>
                         <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${sunday ? "bg-red-100 text-red-700" : "text-slate-700"}`}>{day}</div>
                         {sunday && <div className="mt-1 text-[10px] font-semibold text-red-600">Sunday off</div>}
                         {dayEvents.map((item) => <div key={item.id} title={item.title} className={`mt-1 truncate rounded px-1 py-0.5 text-[10px] font-semibold ${item.type === "holiday" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{item.title}</div>)}
@@ -765,7 +765,7 @@ async function addEmployee(event) {
                     })}
                   </div>
 
-                  <div className="mt-5 border-t border-slate-100 pt-4">
+                  <div className="mt-3 border-t border-slate-100 pt-3">
                     <h3 className="mb-2 text-sm font-bold text-slate-800">Events this month</h3>
                     {events.filter((item) => item.date.startsWith(`${calendarDate.getFullYear()}-${String(calendarDate.getMonth()+1).padStart(2,"0")}`)).length === 0 ? <p className="text-xs text-slate-400">No holidays or events added for this month.</p> : <div className="space-y-2">{events.filter((item) => item.date.startsWith(`${calendarDate.getFullYear()}-${String(calendarDate.getMonth()+1).padStart(2,"0")}`)).sort((a,b) => a.date.localeCompare(b.date)).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{item.title}</p><p className="text-xs text-slate-500">{new Date(`${item.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · {item.type === "holiday" ? "Holiday" : "Event"}</p></div><button type="button" onClick={() => setEvents((current) => current.filter((entry) => entry.id !== item.id))} className="rounded-lg p-2 text-red-500 hover:bg-red-50" aria-label={`Delete ${item.title}`}><X size={15} /></button></div>)}</div>}
                   </div>
@@ -777,7 +777,7 @@ async function addEmployee(event) {
             {/* TAB 2: EMPLOYEE MANAGEMENT */}
             {(activeTab === "employees" || activeTab === "dashboard") && (
               <section className="mt-6 overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30 backdrop-blur-xs">
-                <div className="flex flex-wrap items-center justify-between gap-4 p-6 border-b border-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-4 p-4 border-b border-slate-100">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">
                       {activeTab === "employees" ? "Employee Directory" : "Today's Workforce Status"}
@@ -1192,13 +1192,13 @@ async function addEmployee(event) {
               <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 sm:p-4">
                 <div className="mb-2 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
                 <p className="mb-2 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
-                <video
-  ref={enrollmentVideoRef}
-  autoPlay
-  muted
-  playsInline
-  className="mb-3 h-40 w-full max-w-md mx-auto rounded-xl bg-slate-950 object-cover"
-/>
+                 <video
+                     ref={enrollmentVideoRef}
+                             autoPlay
+                              muted
+                                playsInline
+                           className="mb-3 h-40 w-full max-w-md mx-auto rounded-xl bg-slate-950 object-cover"
+                    />
                 {faceStatus && <p className="mb-3 text-xs text-slate-700" role="status">{faceStatus}</p>}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={startEnrollmentCamera} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800"><Camera size={15}/> Open Camera</button>
