@@ -1,5 +1,5 @@
 
- // Centralized API configuration
+// Centralized API configuration
 
 const DEFAULT_BASE = "https://smart-attendance-api.netlify.app";
 

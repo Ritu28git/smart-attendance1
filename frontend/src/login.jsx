@@ -120,15 +120,6 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <div className="flex justify-end">
-  <button
-    type="button"
-    onClick={() => navigate("/forgot-password")}
-    className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
-  >
-    Forgot Password?
-  </button>
-</div>
         <div className="relative flex items-center justify-between gap-4 border-t border-white/10 pt-5 text-xs text-slate-400">
           <span>© 2026 YUNIFY · Empowering Growth • Talent • Technology</span>
           <span className="hidden rounded-full border border-emerald-300/20 px-3 py-1.5 text-emerald-200 sm:inline-flex">Secure access</span>
@@ -204,6 +195,15 @@ export default function Login() {
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/forgot-password")}
+                    className="text-sm font-semibold text-violet-700 transition hover:text-violet-900 hover:underline"
+                  >
+                    Forgot Password?
                   </button>
                 </div>
               </div>

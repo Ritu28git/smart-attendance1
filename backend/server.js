@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 const dns = require("dns");
+const eventRoutes = require("./router/eventRoutes");
 require("dotenv").config();
 
 // Ensure DNS resolves MongoDB SRV records properly on Windows and varied networks
@@ -13,7 +14,7 @@ try {
 }
 
 const app = express();
-
+app.use("/api/events", eventRoutes);
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
