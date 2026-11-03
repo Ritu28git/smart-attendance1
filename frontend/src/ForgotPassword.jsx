@@ -1,7 +1,6 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
 import { API_URL as API, readResponse } from "./apiConfig";
 
 export default function ForgotPassword() {
@@ -14,27 +13,34 @@ export default function ForgotPassword() {
     e.preventDefault();
     setMessage("");
     setError("");
+
+    const enteredEmail = email.trim().toLowerCase();
+
+    if (!enteredEmail) {
+      setError("Please enter your registered email.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch(`${API}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: enteredEmail }),
       });
-      
-      const data = await readResponse(
-  response,
-  "Unable to send reset link"
-);
 
-      
+      const data = await readResponse(
+        response,
+        "Unable to send reset link."
+      );
+
       setMessage(
         data.message ||
           "If an account exists for this email, a reset link will be sent."
       );
     } catch (err) {
-      setError(err.message || "Server se connect nahi ho pa raha.");
+      setError(err.message || "Server se connection nahi ho pa raha.");
     } finally {
       setLoading(false);
     }
@@ -46,19 +52,22 @@ export default function ForgotPassword() {
         <h1 className="mb-2 text-2xl font-bold text-slate-800">
           Forgot Password?
         </h1>
+
         <p className="mb-6 text-sm text-slate-600">
-          Apna registered email enter karo. Hum password reset link bhejenge.
+          Enter your registered email. We will send you a password reset link.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block text-sm font-medium text-slate-700">
             Registered Email
+
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
+              autoComplete="email"
               className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-indigo-500"
             />
           </label>
@@ -78,7 +87,7 @@ export default function ForgotPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Sending..." : "Send Reset Link"}
           </button>

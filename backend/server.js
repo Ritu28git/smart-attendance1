@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 const dns = require("dns");
-const eventRoutes = require("./router/eventRoutes");
+const eventRoutes = require("./router/eventRouter");
 require("dotenv").config();
 
 // Ensure DNS resolves MongoDB SRV records properly on Windows and varied networks

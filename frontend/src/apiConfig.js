@@ -9,10 +9,10 @@ const rawUrl = (
   .trim()
   .replace(/\/+$/, "");
 
-// Base backend URL (without trailing /api)
+// Backend URL without trailing /api
 export const BACKEND_BASE = rawUrl.replace(/\/api$/i, "");
 
-// API URL (with /api suffix)
+// API URL with /api suffix
 export const API_URL = `${BACKEND_BASE}/api`;
 
 // Safe response reader
