@@ -3,17 +3,21 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Branch = require("../models/Branch");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 
 const {
   authenticate,
   adminOnly,
+  branchManagerOnly,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+
 // ==================== LOGIN ====================
+
 router.post("/login", async (req, res) => {
   try {
     const { employeeId, password } = req.body || {};
@@ -33,7 +37,7 @@ router.post("/login", async (req, res) => {
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({
         success: false,
-        message: "JWT_SECRET is missing in .env",
+        message: "JWT_SECRET is missing in environment variables",
       });
     }
 
@@ -61,6 +65,7 @@ router.post("/login", async (req, res) => {
       {
         id: user._id.toString(),
         role: user.role,
+        branchId: user.branchId || null,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -74,20 +79,24 @@ router.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         employeeId: user.employeeId,
+        email: user.email,
         role: user.role,
+        branchId: user.branchId || null,
       },
     });
   } catch (error) {
-    console.error("LOGIN ERROR DETAILS:", error);
+    console.error("LOGIN ERROR:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message || "Login failed due to a server error",
+      message: "Login failed due to a server error",
     });
   }
 });
-  
-  
- // ==================== FORGOT PASSWORD ====================
+
+
+// ==================== FORGOT PASSWORD ====================
+
 router.post("/forgot-password", async (req, res) => {
   const genericMessage =
     "If an account exists for this email, a password reset link will be sent.";
@@ -185,7 +194,7 @@ router.post("/forgot-password", async (req, res) => {
       message: genericMessage,
     });
   } catch (error) {
-    console.error("FORGOT PASSWORD ERROR:", error.message);
+    console.error("FORGOT PASSWORD ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -194,7 +203,9 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
+
 // ==================== RESET PASSWORD ====================
+
 router.post("/reset-password/:token", async (req, res) => {
   try {
     const { token } = req.params;
@@ -253,7 +264,7 @@ router.post("/reset-password/:token", async (req, res) => {
       message: "Password reset successful. Please log in with your new password.",
     });
   } catch (error) {
-    console.error("RESET PASSWORD ERROR:", error.message);
+    console.error("RESET PASSWORD ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -265,6 +276,7 @@ router.post("/reset-password/:token", async (req, res) => {
 
 // ==================== INITIAL ADMIN SETUP ====================
 // Use only for initial setup. Disable/remove after creating Admin.
+
 router.post("/setup-admin", async (req, res) => {
   try {
     const setupSecret = process.env.ADMIN_SETUP_SECRET;
@@ -273,7 +285,7 @@ router.post("/setup-admin", async (req, res) => {
     if (!setupSecret) {
       return res.status(500).json({
         success: false,
-        message: "ADMIN_SETUP_SECRET is missing in .env",
+        message: "ADMIN_SETUP_SECRET is missing in environment variables",
       });
     }
 
@@ -360,8 +372,10 @@ router.post("/setup-admin", async (req, res) => {
   }
 });
 
-// ==================== ADMIN-ONLY EMPLOYEE REGISTRATION ====================
-router.post("/register", authenticate, adminOnly, async (req, res) => {
+
+// ==================== BRANCH-BASED EMPLOYEE REGISTRATION ====================
+
+router.post("/register", authenticate, branchManagerOnly, async (req, res) => {
   try {
     const {
       name,
@@ -371,25 +385,47 @@ router.post("/register", authenticate, adminOnly, async (req, res) => {
       department,
       designation,
       faceDescriptor,
+      branchId: requestedBranchId,
     } = req.body || {};
 
     if (
       typeof name !== "string" || !name.trim() ||
       typeof employeeId !== "string" || !employeeId.trim() ||
       typeof email !== "string" || !email.trim() ||
-      typeof password !== "string" || !password
+      typeof password !== "string" || password.length < 12
     ) {
       return res.status(400).json({
         success: false,
-        message: "Name, Employee ID, email and password are required",
+        message: "Name, Employee ID, email and password (minimum 12 characters) are required",
       });
     }
 
-    if (password.length < 12) {
-      return res.status(400).json({
+    // Sub-Admin can only register employees in their own branch.
+    // Super Admin can select a branch.
+    const assignedBranchId =
+      req.user.role === "subadmin"
+        ? req.user.branchId
+        : requestedBranchId || null;
+
+    if (req.user.role === "subadmin" && !assignedBranchId) {
+      return res.status(403).json({
         success: false,
-        message: "Password must be at least 12 characters",
+        message: "No branch assigned to this Sub-Admin",
       });
+    }
+
+    if (assignedBranchId) {
+      const branch = await Branch.findOne({
+        _id: assignedBranchId,
+        isActive: true,
+      });
+
+      if (!branch) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected branch not found or inactive",
+        });
+      }
     }
 
     const hasValidDescriptor =
@@ -419,11 +455,13 @@ router.post("/register", authenticate, adminOnly, async (req, res) => {
       employeeId: normalizedEmployeeId,
       email: normalizedEmail,
       password: await bcrypt.hash(password, 12),
-      department: typeof department === "string" ? department.trim() : "",
-      designation: typeof designation === "string" ? designation.trim() : "",
-      faceDescriptor: hasValidDescriptor ? faceDescriptor : [],
-      faceEnrolledAt: hasValidDescriptor ? new Date() : null,
+      department:
+        typeof department === "string" ? department.trim() : "",
+      designation:
+        typeof designation === "string" ? designation.trim() : "",
+      faceDescriptor: hasValidDescriptor ? faceDescriptor : undefined,
       role: "employee",
+      branchId: assignedBranchId,
       isActive: true,
     });
 
@@ -436,6 +474,7 @@ router.post("/register", authenticate, adminOnly, async (req, res) => {
         employeeId: employee.employeeId,
         role: employee.role,
         email: employee.email,
+        branchId: employee.branchId,
       },
     });
   } catch (error) {
@@ -454,5 +493,6 @@ router.post("/register", authenticate, adminOnly, async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;

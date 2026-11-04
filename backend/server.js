@@ -5,7 +5,7 @@ const path = require("path");
 const dns = require("dns");
 const eventRoutes = require("./router/eventRouter");
 require("dotenv").config();
-
+const branchRoutes = require("./router/branchRoutes");
 // Ensure DNS resolves MongoDB SRV records properly on Windows and varied networks
 try {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -21,6 +21,7 @@ app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/api/branches", branchRoutes);
 
 let dbConnectionPromise;
 

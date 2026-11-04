@@ -30,6 +30,8 @@ async function updateMyLocation(req, res) {
       day: "2-digit",
     }).format(new Date());
 
+    const now = new Date();
+
     const attendance = await Attendance.findOne({
       employee: req.user._id,
       date: today,
@@ -37,9 +39,9 @@ async function updateMyLocation(req, res) {
     });
 
     if (attendance) {
-  attendance.location = { latitude, longitude };
-  await attendance.save();
-}
+      attendance.location = { latitude, longitude };
+      await attendance.save();
+    }
 
     await User.findByIdAndUpdate(req.user._id, {
       $set: {
@@ -50,7 +52,7 @@ async function updateMyLocation(req, res) {
             typeof accuracy === "number" && Number.isFinite(accuracy)
               ? accuracy
               : null,
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       },
     });
@@ -61,6 +63,7 @@ async function updateMyLocation(req, res) {
     });
   } catch (err) {
     console.error("Update location error:", err);
+
     return res.status(500).json({
       success: false,
       message: "Failed to update location.",
@@ -68,7 +71,8 @@ async function updateMyLocation(req, res) {
   }
 }
 
-// Admin ke liye checked-in employees ki latest locations
+
+// Admin / Sub-Admin ke liye live employee locations
 async function getLiveEmployeeLocations(req, res) {
   try {
     const today = new Intl.DateTimeFormat("en-CA", {
@@ -78,72 +82,128 @@ async function getLiveEmployeeLocations(req, res) {
       day: "2-digit",
     }).format(new Date());
 
-    const todayAttendances = await Attendance.find({
-      date: today,
-      checkIn: { $ne: null },
-    }).populate("employee", "name employeeId department designation lastLocation");
+    // Super Admin: all branches
+    // Sub-Admin: only assigned branch
+    const employeeFilter = {
+      role: "employee",
+    };
+
+    if (req.user.role === "subadmin") {
+      if (!req.user.branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "No branch is assigned to this Sub-Admin.",
+        });
+      }
+
+      employeeFilter.branchId = req.user.branchId;
+    } else if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view employee locations.",
+      });
+    }
+
+    const usersWithLocation = await User.find({
+      ...employeeFilter,
+      "lastLocation.latitude": { $exists: true, $ne: null },
+    }).select(
+      "name employeeId department designation lastLocation branchId"
+    );
 
     const employeeMap = new Map();
 
-    todayAttendances.forEach((att) => {
-      const emp = att.employee;
-      if (!emp) return;
+    usersWithLocation.forEach((emp) => {
+      const location = emp.lastLocation;
 
-      const empIdStr = emp._id.toString();
-      const loc = emp.lastLocation?.latitude
-        ? emp.lastLocation
-        : att.location?.latitude
-        ? {
-            latitude: att.location.latitude,
-            longitude: att.location.longitude,
-            accuracy: null,
-            updatedAt: att.checkIn,
-          }
-        : null;
-
-      if (loc) {
-  
-        employeeMap.set(empIdStr, {
+      if (
+        location &&
+        Number.isFinite(location.latitude) &&
+        Number.isFinite(location.longitude)
+      ) {
+        employeeMap.set(emp._id.toString(), {
           _id: emp._id,
           name: emp.name,
           employeeId: emp.employeeId,
           department: emp.department || "",
           designation: emp.designation || "",
-          lastLocation: loc,
-          status: att.checkOut ? "checked-out" : att.lunchStart && !att.lunchEnd ? "on-lunch" : "working",
+          branchId: emp.branchId || null,
+          lastLocation: location,
+          status: "active",
         });
       }
     });
 
-    const usersWithLocation = await User.find({
-      role: "employee",
-      "lastLocation.latitude": { $exists: true, $ne: null },
-    }).select("name employeeId department designation lastLocation");
+    // Today's attendance status
+    const employeeIds = Array.from(employeeMap.keys());
 
-    usersWithLocation.forEach((emp) => {
+    const todayAttendances = employeeIds.length
+      ? await Attendance.find({
+          date: today,
+          employee: { $in: employeeIds },
+          checkIn: { $ne: null },
+        })
+          .populate(
+            "employee",
+            "name employeeId department designation branchId"
+          )
+          .sort({ checkIn: -1 })
+      : [];
+
+    todayAttendances.forEach((att) => {
+      const emp = att.employee;
+
+      if (!emp) return;
+
       const empIdStr = emp._id.toString();
-      if (!employeeMap.has(empIdStr) && emp.lastLocation) {
-        employeeMap.set(empIdStr, {
-          _id: emp._id,
-          name: emp.name,
-          employeeId: emp.employeeId,
-          department: emp.department || "",
-          designation: emp.designation || "",
-          lastLocation: emp.lastLocation,
-          status: "active",
-        });
+      const existing = employeeMap.get(empIdStr);
+
+      if (!existing) return;
+
+      const location =
+        att.location &&
+        Number.isFinite(att.location.latitude) &&
+        Number.isFinite(att.location.longitude)
+          ? {
+              latitude: att.location.latitude,
+              longitude: att.location.longitude,
+              accuracy: null,
+              updatedAt: att.checkIn,
+            }
+          : null;
+
+      if (location) {
+        const userLocationTime = existing.lastLocation?.updatedAt
+          ? new Date(existing.lastLocation.updatedAt).getTime()
+          : 0;
+
+        const attendanceLocationTime = new Date(
+          location.updatedAt
+        ).getTime();
+
+        if (attendanceLocationTime > userLocationTime) {
+          existing.lastLocation = location;
+        }
       }
+
+      existing.status = att.checkOut
+        ? "checked-out"
+        : att.lunchStart && !att.lunchEnd
+        ? "on-lunch"
+        : "working";
     });
 
     const employees = Array.from(employeeMap.values());
 
     return res.status(200).json({
       success: true,
+      count: employees.length,
       employees,
       locations: employees,
     });
   } catch (err) {
     console.error("Get live locations error:", err);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch live locations.",

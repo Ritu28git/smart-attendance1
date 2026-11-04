@@ -8,12 +8,14 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
     employeeId: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
+
     email: {
       type: String,
       required: true,
@@ -21,49 +23,46 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+
     password: {
       type: String,
       required: true,
       select: false,
     },
+
     role: {
       type: String,
-      enum: ["admin", "employee"],
+      enum: ["admin", "subadmin", "employee"],
       default: "employee",
     },
+
+    branchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Branch",
+      default: null,
+    },
+
     department: {
       type: String,
       default: "",
     },
-         passwordResetToken: {
+
+    designation: {
       type: String,
-      default: undefined,
-      select: false,
-    },
-    passwordResetExpires: {
-      type: Date,
-      default: undefined,
-      select: false,
+      default: "",
     },
 
-lastLocation: {
-  latitude: { type: Number },
-  longitude: { type: Number },
-  accuracy: { type: Number },
-  updatedAt: { type: Date },
-},
-    designation: { type: String, default: "" },
-    // 128-number face-recognition embedding captured during admin registration.
-    faceDescriptor: { type: [Number], default: [], select: false },
-    faceEnrolledAt: { type: Date, default: null },
-    faceHash: { type: String, default: "" },
     isActive: {
       type: Boolean,
       default: true,
     },
+
+    faceDescriptor: {
+      type: [Number],
+      select: false,
+      default: undefined,
+    },
   },
-
-
   { timestamps: true }
 );
 

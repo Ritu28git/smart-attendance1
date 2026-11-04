@@ -35,15 +35,51 @@ async function authenticate(req, res, next) {
   }
 }
 
-function adminOnly(req, res, next) {
+
+// Only Super Admin
+function superAdminOnly(req, res, next) {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({
       success: false,
-      message: "Only Admin can perform this action",
+      message: "Only Super Admin can perform this action",
     });
   }
 
   next();
 }
 
-module.exports = { authenticate, adminOnly, protect: authenticate };
+
+// Backward compatibility with existing admin routes
+const adminOnly = superAdminOnly;
+
+
+// Super Admin OR Sub-Admin
+function branchManagerOnly(req, res, next) {
+  if (
+    !req.user ||
+    !["admin", "subadmin"].includes(req.user.role)
+  ) {
+    return res.status(403).json({
+      success: false,
+      message: "Only Admin or Sub-Admin can perform this action",
+    });
+  }
+
+  if (req.user.role === "subadmin" && !req.user.branchId) {
+    return res.status(403).json({
+      success: false,
+      message: "No branch assigned to this Sub-Admin",
+    });
+  }
+
+  next();
+}
+
+
+module.exports = {
+  authenticate,
+  adminOnly,
+  superAdminOnly,
+  branchManagerOnly,
+  protect: authenticate,
+};

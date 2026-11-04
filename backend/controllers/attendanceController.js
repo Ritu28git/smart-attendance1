@@ -137,7 +137,7 @@ async function checkIn(req, res) {
     }
 
     if (
-      typeof latitude === "number" &&
+      typeof latitude === "number" &&     
       typeof longitude === "number" &&
       Number.isFinite(latitude) &&
       Number.isFinite(longitude)
@@ -531,19 +531,57 @@ async function getHistory(req, res) {
 }
 
 // ==================== ADMIN ATTENDANCE ====================
+
 async function getAllAttendance(req, res) {
   try {
-    const records = await Attendance.find()
+    let attendanceFilter = {};
+
+    // Super Admin can view attendance of all branches
+    if (req.user.role === "admin") {
+      attendanceFilter = {};
+    }
+
+    // Sub-Admin can view only employees of their own branch
+    else if (req.user.role === "subadmin") {
+      if (!req.user.branchId) {
+        return res.status(403).json({
+          success: false,
+          message: "No branch is assigned to this Sub-Admin.",
+        });
+      }
+
+      const employees = await User.find({
+        role: "employee",
+        branchId: req.user.branchId,
+      }).select("_id");
+
+      const employeeIds = employees.map((employee) => employee._id);
+
+      attendanceFilter = {
+        employee: { $in: employeeIds },
+      };
+    }
+
+    else {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view attendance.",
+      });
+    }
+
+    const records = await Attendance.find(attendanceFilter)
       .populate(
         "employee",
-        "name employeeId department designation role"
+        "name employeeId department designation role branchId"
       )
       .sort({ date: -1, createdAt: -1 });
 
     return res.status(200).json({
       success: true,
+      count: records.length,
       records,
     });
+
   } catch (err) {
     console.error("Get all attendance error:", err);
 
@@ -553,6 +591,7 @@ async function getAllAttendance(req, res) {
     });
   }
 }
+
 
 module.exports = {
   checkIn,

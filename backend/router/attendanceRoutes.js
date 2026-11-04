@@ -1,5 +1,11 @@
-const express = require('express');
-const { protect, adminOnly } = require('../middleware/authMiddleware');
+
+const express = require("express");
+
+const {
+  protect,
+  branchManagerOnly,
+} = require("../middleware/authMiddleware");
+
 const {
   checkIn,
   checkOut,
@@ -9,30 +15,57 @@ const {
   getHistory,
   getAllAttendance,
   verifyFace,
-} = require('../controllers/attendanceController');
+} = require("../controllers/attendanceController");
 
 const {
   updateMyLocation,
   getLiveEmployeeLocations,
-} = require('../controllers/locationController');
+} = require("../controllers/locationController");
 
 const router = express.Router();
 
-// Employee routes
-router.post('/check-in', protect, checkIn);
-router.post('/check-out', protect, checkOut);
-router.post('/lunch/start', protect, startLunch);
-router.post('/lunch/end', protect, endLunch);
-router.post('/photo', protect, uploadPhoto);
-router.post('/verify-face', protect, verifyFace);
-router.get('/history', protect, getHistory);
-// Employee: update own live location
-router.post('/location', protect, updateMyLocation);
 
-// Admin: view live employee locations
-router.get('/admin/live-locations', protect, adminOnly, getLiveEmployeeLocations);
+// ==================== EMPLOYEE ROUTES ====================
 
-// Admin route to view all attendance records
-router.get('/admin', protect, adminOnly, getAllAttendance);
+// Check-in
+router.post("/check-in", protect, checkIn);
+
+// Check-out
+router.post("/check-out", protect, checkOut);
+
+// Lunch break
+router.post("/lunch/start", protect, startLunch);
+router.post("/lunch/end", protect, endLunch);
+
+// Photo upload
+router.post("/photo", protect, uploadPhoto);
+
+// Face verification
+router.post("/verify-face", protect, verifyFace);
+
+// Employee's own attendance history
+router.get("/history", protect, getHistory);
+
+// Employee's own live location
+router.post("/location", protect, updateMyLocation);
+
+
+// ==================== ADMIN / SUB-ADMIN ROUTES ====================
+
+// Super Admin: all branches
+// Sub-Admin: own branch only (controller must enforce this)
+router.get(
+  "/admin/live-locations",
+  protect,
+  branchManagerOnly,
+  getLiveEmployeeLocations
+);
+
+router.get(
+  "/admin",
+  protect,
+  branchManagerOnly,
+  getAllAttendance
+);
 
 module.exports = router;

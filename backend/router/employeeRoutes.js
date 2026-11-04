@@ -1,15 +1,31 @@
 
 const express = require("express");
+const mongoose = require("mongoose");
 const User = require("../models/User");
-const { authenticate, adminOnly } = require("../middleware/authMiddleware");
+
+const {
+  authenticate,
+  branchManagerOnly,
+} = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Get real employees from MongoDB
-router.get("/", authenticate, adminOnly, async (req, res) => {
+
+// ==================== GET EMPLOYEES ====================
+
+router.get("/", authenticate, branchManagerOnly, async (req, res) => {
   try {
-    const employees = await User.find({ role: "employee" })
-      .select("name employeeId email department designation isActive")
+    const filter = {
+      role: "employee",
+    };
+
+    // Sub-Admin can only see employees of their assigned branch
+    if (req.user.role === "subadmin") {
+      filter.branchId = req.user.branchId;
+    }
+
+    const employees = await User.find(filter)
+      .select("name employeeId email department designation isActive branchId")
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -19,6 +35,7 @@ router.get("/", authenticate, adminOnly, async (req, res) => {
     });
   } catch (error) {
     console.error("Fetch employees error:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch employees",
@@ -26,37 +43,64 @@ router.get("/", authenticate, adminOnly, async (req, res) => {
   }
 });
 
-/* Update employee details */
-router.put("/:id", authenticate, adminOnly, async (req, res) => {
-  try {
-    const { name, employeeId, email, department, designation } = req.body;
 
-    if (!name?.trim() || !employeeId?.trim() || !email?.trim()) {
+// ==================== UPDATE EMPLOYEE ====================
+
+router.put("/:id", authenticate, branchManagerOnly, async (req, res) => {
+  try {
+    const {
+      name,
+      employeeId,
+      email,
+      department,
+      designation,
+    } = req.body || {};
+
+    if (
+      typeof name !== "string" || !name.trim() ||
+      typeof employeeId !== "string" || !employeeId.trim() ||
+      typeof email !== "string" || !email.trim()
+    ) {
       return res.status(400).json({
         success: false,
         message: "Name, Employee ID and email are required.",
       });
     }
 
-    const employee = await User.findOne({
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid employee ID.",
+      });
+    }
+
+    const filter = {
       _id: req.params.id,
       role: "employee",
-    });
+    };
+
+    // Sub-Admin can only update employees in their own branch
+    if (req.user.role === "subadmin") {
+      filter.branchId = req.user.branchId;
+    }
+
+    const employee = await User.findOne(filter);
 
     if (!employee) {
       return res.status(404).json({
         success: false,
-        message: "Employee not found.",
+        message: "Employee not found in your assigned branch.",
       });
     }
 
-    // Check whether another employee already uses this ID or email
+    const normalizedEmployeeId = employeeId.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
     const duplicate = await User.findOne({
       _id: { $ne: employee._id },
-      role: "employee",
       $or: [
-        { employeeId: employeeId.trim() },
-        { email: email.trim().toLowerCase() },
+        { employeeId: normalizedEmployeeId },
+        { email: normalizedEmail },
       ],
     });
 
@@ -68,10 +112,12 @@ router.put("/:id", authenticate, adminOnly, async (req, res) => {
     }
 
     employee.name = name.trim();
-    employee.employeeId = employeeId.trim();
-    employee.email = email.trim().toLowerCase();
-    employee.department = department?.trim() || "";
-    employee.designation = designation?.trim() || "";
+    employee.employeeId = normalizedEmployeeId;
+    employee.email = normalizedEmail;
+    employee.department =
+      typeof department === "string" ? department.trim() : "";
+    employee.designation =
+      typeof designation === "string" ? designation.trim() : "";
 
     await employee.save();
 
@@ -85,6 +131,7 @@ router.put("/:id", authenticate, adminOnly, async (req, res) => {
         email: employee.email,
         department: employee.department,
         designation: employee.designation,
+        branchId: employee.branchId,
       },
     });
   } catch (error) {
