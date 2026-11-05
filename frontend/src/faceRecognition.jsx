@@ -15,7 +15,7 @@ export function loadFaceModels() {
     });
   }
 
-  
+
   return modelsPromise;
 }
 
@@ -38,7 +38,7 @@ export async function getFaceDescriptor(video) {
     .detectSingleFace(
       video,
       new faceapi.SsdMobilenetv1Options({
-        minConfidence: 0.2,
+        minConfidence: 0.1,
       })
     )
     .withFaceLandmarks()
