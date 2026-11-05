@@ -38,7 +38,7 @@ export async function getFaceDescriptor(video) {
     .detectSingleFace(
       video,
       new faceapi.SsdMobilenetv1Options({
-        minConfidence: 0.1,
+        minConfidence: 0.2,
       })
     )
     .withFaceLandmarks()
