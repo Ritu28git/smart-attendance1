@@ -1225,9 +1225,9 @@ const captureAndSubmit = async () => {
                        <button
                       type="button"
                             key={item.key}
-                           disabled={item.disabled || busy}
+                           disabled={item.disabled}
                             onClick={() => {
-                         if (item.disabled || busy) return;
+                         if (item.disabled ) return;
                         openCamera(item.key);
                            }}
                           className={`group relative flex flex-col justify-between rounded-2xl p-5 text-left transition duration-200 active:scale-[0.98] border ${
