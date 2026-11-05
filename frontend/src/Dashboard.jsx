@@ -153,7 +153,8 @@ export default function Dashboard() {
   const [cameraReady, setCameraReady] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-   const submitLockRef = useRef(false);
+  const pendingActionRef = useRef(null);
+  const submitLockRef = useRef(false);
   const locationWatchRef = useRef(null);
   const [currentCoords, setCurrentCoords] = useState(null);
   const [locationStatus, setLocationStatus] = useState("idle");
@@ -496,134 +497,108 @@ const openCamera = useCallback(async (action) => {
     );
   };
 
-  
-const captureAndSubmit = async () => {
-  if (submitLockRef.current) return;
+  const captureAndSubmit = async () => {
+    // Ignore rapid repeated taps while verification/attendance is processing.
+    if (submitLockRef.current) return;
 
-  const video = videoRef.current;
-
-  if (!video || !video.videoWidth || !video.videoHeight) {
-    setCameraError("Camera preview is loading. Please wait 2 seconds.");
-    return;
-  }
-
-  submitLockRef.current = true;
-  setBusy(true);
-  setCameraError("");
-  setError("");
-  setMessage("");
-
-  const action = pendingActionRef.current;
-
-  try {
-    // 1. Face detection
-    const faceDescriptor = await getFaceDescriptor(video);
-
-    // 2. Capture selfie
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Unable to capture camera photo.");
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const selfiePhoto = canvas.toDataURL("image/jpeg", 0.7);
-
-    // 3. Verify face
-    const verification = await readResponse(
-      await fetch(`${API}/attendance/verify-face`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ faceDescriptor }),
-      })
-    );
-
-    if (!verification.verified) {
-      throw new Error(
-        verification.message || "Face verification failed."
-      );
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError("Camera preview is loading. Please wait 2 seconds.");
+      return;
     }
 
-    // 4. Get GPS
-    let locCoords = currentCoords;
+    submitLockRef.current = true;
+    setBusy(true);
+    setCameraError("");
+    setError("");
+    setMessage("");
 
-    if (!locCoords && navigator.geolocation) {
-      locCoords = await new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) =>
-            resolve({
+    const action = pendingActionRef.current;
+
+    try {
+      // 1. Detect a real face. Never send a dummy descriptor.
+      const faceDescriptor = await getFaceDescriptor(video);
+
+      // 2. Capture live selfie photo.
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Unable to capture camera photo.");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const selfiePhoto = canvas.toDataURL("image/jpeg", 0.7);
+
+      // 3. Verify face with backend.
+      const verification = await readResponse(
+        await fetch(`${API}/attendance/verify-face`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ faceDescriptor }),
+        })
+      );
+      if (!verification.verified) {
+        throw new Error(verification.message || "Face verification failed.");
+      }
+
+      // 4. Capture current GPS coordinates.
+      let locCoords = currentCoords;
+      if (!locCoords && navigator.geolocation) {
+        locCoords = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
               accuracy: pos.coords.accuracy,
             }),
-          () => resolve(null),
-          {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0,
-          }
-        );
-      });
+            () => resolve(null),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        });
+      }
+
+      // 5. Submit the selected attendance action.
+      const endpoints = {
+        checkIn: "/attendance/check-in",
+        checkOut: "/attendance/check-out",
+        lunchStart: "/attendance/lunch/start",
+        lunchEnd: "/attendance/lunch/end",
+      };
+      const endpoint = endpoints[action];
+      if (!endpoint) throw new Error("Invalid attendance action requested.");
+
+      const requestBody = {
+        consent: true,
+        photo: selfiePhoto,
+        ...(locCoords ? {
+          latitude: locCoords.latitude,
+          longitude: locCoords.longitude,
+          accuracy: locCoords.accuracy,
+        } : {}),
+      };
+
+      const result = await readResponse(
+        await fetch(`${API}${endpoint}`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(requestBody),
+        })
+      );
+
+      setMessage(result.message || "Attendance updated successfully.");
+      if (locCoords) void sendLocation({ coords: locCoords });
+      if (action === "checkIn") startLocationTracking();
+      else if (action === "checkOut") stopLocationTracking();
+
+      if (result.attendance) setTodayRecord(result.attendance);
+      stopCamera();
+      await loadData();
+    } catch (err) {
+      setCameraError(err.message || "Attendance action failed. Please try again.");
+    } finally {
+      submitLockRef.current = false;
+      setBusy(false);
     }
-
-    // 5. Attendance action
-    const endpoints = {
-      checkIn: "/attendance/check-in",
-      checkOut: "/attendance/check-out",
-      lunchStart: "/attendance/lunch/start",
-      lunchEnd: "/attendance/lunch/end",
-    };
-
-    const endpoint = endpoints[action];
-
-    if (!endpoint) {
-      throw new Error("Invalid attendance action requested.");
-    }
-
-    const requestBody = {
-      consent: true,
-      photo: selfiePhoto,
-      ...(locCoords || {}),
-    };
-
-    const result = await readResponse(
-      await fetch(`${API}${endpoint}`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(requestBody),
-      })
-    );
-
-    setMessage(result.message || "Attendance updated successfully.");
-
-    if (locCoords) {
-      void sendLocation({ coords: locCoords });
-    }
-
-    if (action === "checkIn") {
-      startLocationTracking();
-    } else if (action === "checkOut") {
-      stopLocationTracking();
-    }
-
-    if (result.attendance) {
-      setTodayRecord(result.attendance);
-    }
-
-    stopCamera();
-    void loadData();
-
-  } catch (err) {
-    setCameraError(
-      err.message || "Attendance action failed. Please try again."
-    );
-  } finally {
-    submitLockRef.current = false;
-    setBusy(false);
-  }
-};
-
+  };
 
   // State calculations
   const isSunday = isSundayToday() && !simulateWorkday;
@@ -1222,14 +1197,14 @@ const captureAndSubmit = async () => {
                     {actionCards.map((item) => {
                       const Icon = item.icon;
                       return (
-                       <button
-                      type="button"
-                            key={item.key}
-                           disabled={item.disabled}
-                            onClick={() => {
-                         if (item.disabled ) return;
-                        openCamera(item.key);
-                           }}
+                        <button
+                          type="button"
+                          key={item.key}
+                          disabled={item.disabled}
+                          onClick={() => {
+                            if (item.disabled) return;
+                            void openCamera(item.key);
+                          }}
                           className={`group relative flex flex-col justify-between rounded-2xl p-5 text-left transition duration-200 active:scale-[0.98] border ${
                             item.disabled
                               ? "bg-slate-50/90 text-slate-500 border-slate-200/80 cursor-not-allowed shadow-xs"
