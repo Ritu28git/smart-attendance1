@@ -1,5 +1,6 @@
 
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+
 import Login from "./login.jsx";
 import Dashboard from "./Dashboard.jsx";
 import AdminDashboard from "./AdminDashboard.jsx";
@@ -7,8 +8,8 @@ import ForgotPassword from "./ForgotPassword.jsx";
 import ResetPassword from "./ResetPassword.jsx";
 
 function ProtectedRoute() {
-  let user = null;
   const token = localStorage.getItem("token");
+  let user = null;
 
   try {
     user = JSON.parse(localStorage.getItem("user") || "null");
@@ -20,11 +21,17 @@ function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role.toLowerCase() === "admin") {
+  const role = user.role.toLowerCase();
+
+  if (role === "admin" || role === "subadmin") {
     return <AdminDashboard />;
   }
 
-  return <Dashboard />;
+  if (role === "employee") {
+    return <Dashboard />;
+  }
+
+  return <Navigate to="/login" replace />;
 }
 
 export default function App() {

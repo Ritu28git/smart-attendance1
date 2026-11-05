@@ -153,7 +153,7 @@ export default function Dashboard() {
   const [cameraReady, setCameraReady] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const pendingActionRef = useRef(null);
+   const submitLockRef = useRef(false);
   const locationWatchRef = useRef(null);
   const [currentCoords, setCurrentCoords] = useState(null);
   const [locationStatus, setLocationStatus] = useState("idle");
@@ -496,122 +496,134 @@ const openCamera = useCallback(async (action) => {
     );
   };
 
-  const captureAndSubmit = async () => {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) {
-      setCameraError("Camera preview is loading. Please wait 2 seconds.");
-      return;
-    }
-    const action = pendingActionRef.current;
-    let faceDescriptor = null;
-    try {
-      faceDescriptor = await getFaceDescriptor(video);
-    } catch (err) {
-      console.warn("Face landmark detection note:", err.message);
-      // In low light, fallback to dummy descriptor so live selfie photo can still be captured and saved
-      faceDescriptor = new Array(128).fill(0);
-    }
+  
+const captureAndSubmit = async () => {
+  if (submitLockRef.current) return;
 
-    // Capture live selfie photo snapshot from camera
-    let selfiePhoto = null;
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      selfiePhoto = canvas.toDataURL("image/jpeg", 0.7);
-    } catch (snapErr) {
-      console.warn("Could not capture video snapshot:", snapErr);
-    }
+  const video = videoRef.current;
 
-    setBusy(true);
-    setCameraError("");
-    setError("");
-    setMessage("");
+  if (!video || !video.videoWidth || !video.videoHeight) {
+    setCameraError("Camera preview is loading. Please wait 2 seconds.");
+    return;
+  }
 
-    try {
-      // 1. Verify face/photo with backend
-      const verification = await readResponse(
-        await fetch(`${API}/attendance/verify-face`, {
-          method: "POST",
-          headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ faceDescriptor }),
-        })
+  submitLockRef.current = true;
+  setBusy(true);
+  setCameraError("");
+  setError("");
+  setMessage("");
+
+  const action = pendingActionRef.current;
+
+  try {
+    // 1. Face detection
+    const faceDescriptor = await getFaceDescriptor(video);
+
+    // 2. Capture selfie
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Unable to capture camera photo.");
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const selfiePhoto = canvas.toDataURL("image/jpeg", 0.7);
+
+    // 3. Verify face
+    const verification = await readResponse(
+      await fetch(`${API}/attendance/verify-face`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ faceDescriptor }),
+      })
+    );
+
+    if (!verification.verified) {
+      throw new Error(
+        verification.message || "Face verification failed."
       );
-      if (!verification.verified) throw new Error(verification.message || "Face verification failed.");
-
-      // 2. Capture live GPS coordinates at the exact moment of capture
-      let locCoords = currentCoords;
-      if (!locCoords && navigator.geolocation) {
-        try {
-          locCoords = await new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) =>
-                resolve({
-                  latitude: pos.coords.latitude,
-                  longitude: pos.coords.longitude,
-                  accuracy: pos.coords.accuracy,
-                }),
-              () => resolve(null),
-              { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-          });
-        } catch {
-          locCoords = null;
-        }
-      }
-
-      // 3. Perform requested attendance action with live coordinates & selfie photo
-      const endpoints = {
-        checkIn: "/attendance/check-in",
-        checkOut: "/attendance/check-out",
-        lunchStart: "/attendance/lunch/start",
-        lunchEnd: "/attendance/lunch/end",
-      };
-      const endpoint = endpoints[action];
-      if (!endpoint) throw new Error("Invalid attendance action requested.");
-
-      const requestBody = {
-        consent: true,
-        ...(selfiePhoto ? { photo: selfiePhoto } : {}),
-        ...(locCoords
-          ? {
-              latitude: locCoords.latitude,
-              longitude: locCoords.longitude,
-              accuracy: locCoords.accuracy,
-            }
-          : {}),
-      };
-
-      const result = await readResponse(
-        await fetch(`${API}${endpoint}`, {
-          method: "POST",
-          headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        })
-      );
-
-      setMessage(result.message || "Attendance updated successfully.");
-      if (locCoords) {
-        void sendLocation({ coords: locCoords });
-      }
-      if (action === "checkIn") {
-        startLocationTracking();
-      } else if (action === "checkOut") {
-        stopLocationTracking();
-      }
-      stopCamera();
-      if (result.attendance) {
-        setTodayRecord(result.attendance);
-      }
-      await loadData();
-    } catch (err) {
-      setCameraError(err.message || "Attendance action failed. Please try again.");
-    } finally {
-      setBusy(false);
     }
-  };
+
+    // 4. Get GPS
+    let locCoords = currentCoords;
+
+    if (!locCoords && navigator.geolocation) {
+      locCoords = await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) =>
+            resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            }),
+          () => resolve(null),
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0,
+          }
+        );
+      });
+    }
+
+    // 5. Attendance action
+    const endpoints = {
+      checkIn: "/attendance/check-in",
+      checkOut: "/attendance/check-out",
+      lunchStart: "/attendance/lunch/start",
+      lunchEnd: "/attendance/lunch/end",
+    };
+
+    const endpoint = endpoints[action];
+
+    if (!endpoint) {
+      throw new Error("Invalid attendance action requested.");
+    }
+
+    const requestBody = {
+      consent: true,
+      photo: selfiePhoto,
+      ...(locCoords || {}),
+    };
+
+    const result = await readResponse(
+      await fetch(`${API}${endpoint}`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(requestBody),
+      })
+    );
+
+    setMessage(result.message || "Attendance updated successfully.");
+
+    if (locCoords) {
+      void sendLocation({ coords: locCoords });
+    }
+
+    if (action === "checkIn") {
+      startLocationTracking();
+    } else if (action === "checkOut") {
+      stopLocationTracking();
+    }
+
+    if (result.attendance) {
+      setTodayRecord(result.attendance);
+    }
+
+    stopCamera();
+    await loadData();
+
+  } catch (err) {
+    setCameraError(
+      err.message || "Attendance action failed. Please try again."
+    );
+  } finally {
+    submitLockRef.current = false;
+    setBusy(false);
+  }
+};
+
 
   // State calculations
   const isSunday = isSundayToday() && !simulateWorkday;

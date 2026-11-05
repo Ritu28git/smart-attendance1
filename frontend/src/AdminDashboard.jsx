@@ -52,8 +52,234 @@ const formatTime = (value) =>
       })
     : "—";
 
+
+function BranchManagement({ API, employees, onRefresh }) {
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [branchForm, setBranchForm] = useState({ name: "", code: "", address: "" });
+  const [subadminForms, setSubadminForms] = useState({});
+  const [assignments, setAssignments] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const token = () => localStorage.getItem("token");
+  const headers = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token()}`,
+  });
+
+  const loadBranches = useCallback(async () => {
+    setLoadingBranches(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/branches`, { headers: headers() });
+      const data = await readResponse(response, "Branches load nahi hui.");
+      setBranches(data.branches || []);
+    } catch (e) {
+      setError(e.message || "Branches load nahi hui.");
+    } finally {
+      setLoadingBranches(false);
+    }
+  }, [API]);
+
+  useEffect(() => {
+    loadBranches();
+  }, [loadBranches]);
+
+  async function createBranch(e) {
+    e.preventDefault();
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch(`${API}/branches`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(branchForm),
+      });
+      const data = await readResponse(response, "Branch create nahi hui.");
+      setNotice(`Branch "${data.branch?.name}" successfully create ho gayi.`);
+      setBranchForm({ name: "", code: "", address: "" });
+      await loadBranches();
+    } catch (e) {
+      setError(e.message || "Branch create nahi hui.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createSubadmin(e, branchId) {
+    e.preventDefault();
+    setBusy(true);
+    setNotice("");
+    setError("");
+    const form = subadminForms[branchId] || {};
+    try {
+      const response = await fetch(`${API}/branches/${branchId}/subadmins`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(form),
+      });
+      const data = await readResponse(response, "Sub-Admin create nahi hua.");
+      setNotice(`${data.subadmin?.name || "Sub-Admin"} successfully create ho gaya.`);
+      setSubadminForms((current) => ({
+        ...current,
+        [branchId]: { name: "", employeeId: "", email: "", password: "" },
+      }));
+    } catch (e) {
+      setError(e.message || "Sub-Admin create nahi hua.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function assignEmployees(branchId) {
+    const employeeIds = assignments[branchId] || [];
+    if (!employeeIds.length) {
+      setError("Pehle employees select karo.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch(`${API}/branches/${branchId}/assign-employees`, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({ employeeIds }),
+      });
+      const data = await readResponse(response, "Employees assign nahi hue.");
+      setNotice(`${data.assignedCount} employee(s) branch mein assign hue.`);
+      setAssignments((current) => ({ ...current, [branchId]: [] }));
+      await onRefresh();
+    } catch (e) {
+      setError(e.message || "Employees assign nahi hue.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleBranch(branch) {
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      const response = await fetch(`${API}/branches/${branch._id}`, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({ isActive: !branch.isActive }),
+      });
+      await readResponse(response, "Branch status update nahi hua.");
+      setNotice(`${branch.name} ${branch.isActive ? "deactivated" : "activated"} successfully.`);
+      await loadBranches();
+    } catch (e) {
+      setError(e.message || "Branch status update nahi hua.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputClass = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100";
+  const buttonClass = "rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-3xl border border-indigo-100/70 bg-white/95 p-6 shadow-md shadow-indigo-100/30">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="rounded-2xl bg-violet-50 p-3 text-violet-600"><Building size={22} /></div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Create New Branch</h2>
+            <p className="text-xs text-slate-500">Add an office location to your organization</p>
+          </div>
+        </div>
+        <form onSubmit={createBranch} className="grid gap-3 md:grid-cols-3">
+          <input className={inputClass} placeholder="Branch name" value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })} required />
+          <input className={inputClass} placeholder="Unique branch code (e.g. INDORE01)" value={branchForm.code} onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value.toUpperCase() })} required />
+          <input className={inputClass} placeholder="Address (optional)" value={branchForm.address} onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })} />
+          <div className="md:col-span-3"><button className={buttonClass} disabled={busy}> <Plus size={15} className="mr-1 inline" /> Create Branch</button></div>
+        </form>
+      </section>
+
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Branches & Access Management</h2>
+          <p className="text-xs text-slate-500">Create Sub-Admins and assign employees branch-wise</p>
+        </div>
+        <button onClick={loadBranches} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" disabled={loadingBranches}>
+          <RefreshCw size={14} className="mr-2 inline" /> Refresh
+        </button>
+      </div>
+
+      {loadingBranches ? (
+        <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500">Loading branches...</div>
+      ) : branches.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-violet-200 bg-white/70 p-10 text-center text-sm text-slate-500">Abhi koi branch nahi hai. Upar se pehli branch create karo.</div>
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-2">
+          {branches.map((branch) => (
+            <section key={branch._id} className="rounded-3xl border border-indigo-100/70 bg-white/95 p-6 shadow-md shadow-indigo-100/30">
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{branch.name}</h3>
+                  <p className="mt-1 text-xs text-slate-500">{branch.code} {branch.address ? `· ${branch.address}` : ""}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${branch.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{branch.isActive ? "Active" : "Inactive"}</span>
+                  <button onClick={() => toggleBranch(branch)} disabled={busy} className="mt-2 block text-xs font-semibold text-indigo-600 hover:underline">{branch.isActive ? "Deactivate" : "Activate"}</button>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-5">
+                <h4 className="mb-3 text-sm font-bold text-slate-800">Create Sub-Admin</h4>
+                <form onSubmit={(e) => createSubadmin(e, branch._id)} className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    ["name", "Full name", "text"],
+                    ["employeeId", "Employee ID", "text"],
+                    ["email", "Email", "email"],
+                    ["password", "Password (min 12 chars)", "password"],
+                  ].map(([key, placeholder, type]) => (
+                    <input key={key} type={type} className={inputClass} placeholder={placeholder} minLength={key === "password" ? 12 : undefined} required value={subadminForms[branch._id]?.[key] || ""} onChange={(e) => setSubadminForms((current) => ({ ...current, [branch._id]: { ...(current[branch._id] || {}), [key]: e.target.value } }))} />
+                  ))}
+                  <div className="sm:col-span-2"><button className={buttonClass} disabled={busy || !branch.isActive}>Create Sub-Admin</button></div>
+                </form>
+              </div>
+
+              <div className="mt-6 border-t border-slate-100 pt-5">
+                <h4 className="mb-1 text-sm font-bold text-slate-800">Assign Existing Employees</h4>
+                <p className="mb-3 text-xs text-slate-500">Select employees to move into this branch.</p>
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-100 p-3">
+                  {employees.length === 0 ? <p className="text-xs text-slate-400">No employees found.</p> : employees.map((employee) => (
+                    <label key={employee._id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={(assignments[branch._id] || []).includes(employee._id)} onChange={(e) => setAssignments((current) => ({ ...current, [branch._id]: e.target.checked ? [...(current[branch._id] || []), employee._id] : (current[branch._id] || []).filter((id) => id !== employee._id) }))} />
+                      <span>{employee.name} <span className="text-xs text-slate-400">({employee.employeeId})</span></span>
+                    </label>
+                  ))}
+                </div>
+                <button onClick={() => assignEmployees(branch._id)} disabled={busy || !branch.isActive} className={`${buttonClass} mt-3`}>Assign Selected Employees</button>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const isSuperAdmin = currentUser?.role?.toLowerCase() === "admin";
   const [employees, setEmployees] = useState([]);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +350,28 @@ const [showEditForm, setShowEditForm] = useState(false);
     department: "",
     designation: "",
   });
+  const [branchOptions, setBranchOptions] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let cancelled = false;
+
+    const loadBranchOptions = async () => {
+      try {
+        const response = await fetch(`${API}/branches`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await readResponse(response, "Branches load nahi hui.");
+        if (!cancelled) setBranchOptions(data.branches || []);
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Branches load nahi hui.");
+      }
+    };
+
+    loadBranchOptions();
+    return () => { cancelled = true; };
+  }, [isSuperAdmin]);
 
   useEffect(() => () => {
     if (enrollmentStreamRef.current) enrollmentStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -390,8 +638,13 @@ async function addEmployee(event) {
       throw new Error("Login token not found.");
     }
 
+    if (isSuperAdmin && !selectedBranchId) {
+      throw new Error("Employee ke liye branch select karo.");
+    }
+
     const payload = {
       ...form,
+      ...(isSuperAdmin ? { branchId: selectedBranchId } : {}),
       ...(faceDescriptor && faceDescriptor.length === 128 ? { faceDescriptor } : {}),
     };
 
@@ -422,6 +675,7 @@ async function addEmployee(event) {
       department: "",
       designation: "",
     });
+    setSelectedBranchId("");
 
     setShowForm(false);
     await loadDashboard();
@@ -437,6 +691,7 @@ async function addEmployee(event) {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "employees", label: "Employees", icon: Users },
     { id: "attendance", label: "Attendance", icon: CalendarCheck },
+    ...(isSuperAdmin ? [{ id: "branches", label: "Branches", icon: Building }] : []),
   ];
 
   return (
@@ -469,7 +724,7 @@ async function addEmployee(event) {
                   YUNIFY
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 -mt-0.5">
-                  Admin Portal
+                  {isSuperAdmin ? "Super Admin Portal" : "Sub-Admin Portal"}
                 </span>
               </div>
             )}
@@ -560,7 +815,9 @@ async function addEmployee(event) {
               <Menu size={20} />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 sm:text-xl">Admin Dashboard 👋</h1>
+              <h1 className="text-lg font-bold text-slate-900 sm:text-xl">
+                {activeTab === "branches" ? "Branch Management" : isSuperAdmin ? "Super Admin Dashboard 👋" : "Sub-Admin Dashboard 👋"}
+              </h1>
               <p className="text-xs text-slate-500">Overview of your office attendance system</p>
             </div>
           </div>
@@ -608,11 +865,11 @@ async function addEmployee(event) {
             {/* Admin Badge */}
             <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-1.5 pr-3 shadow-xs">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 font-bold text-xs text-white shadow-sm">
-                AD
+                {(currentUser?.name || "User").trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div className="hidden sm:block text-left leading-tight">
-                <p className="text-xs font-bold text-slate-900">Administrator</p>
-                <p className="text-[10px] text-slate-500">Super Admin</p>
+                <p className="max-w-36 truncate text-xs font-bold text-slate-900">{currentUser?.name || "Administrator"}</p>
+                <p className="text-[10px] text-slate-500">{isSuperAdmin ? "Super Admin" : "Sub-Admin"}</p>
               </div>
             </div>
           </div>
@@ -749,64 +1006,23 @@ async function addEmployee(event) {
                     </form>
                   )}
 
-                  <div className="grid grid-cols-7 gap-1 ">
+                  <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className={`py-2 text-center text-xs font-bold ${day === "Sun" ? "text-red-600" : "text-slate-500"}`}>{day}</div>)}
-                     {getCalendarDays().map((day, index) => {
-  if (!day) {
-    return (
-      <div
-        key={`empty-${index}`}
-        className="h-14 min-h-0 rounded-lg bg-slate-50/60"
-      />
-    );
-  }
-
-  const dateKey = formatCalendarDate(day);
-  const sunday =
-    new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day).getDay() === 0;
-  const today = dateKey === new Date().toLocaleDateString("en-CA");
-  const dayEvents = events.filter((item) => item.date === dateKey);
-
-  return (
-    <div
-      key={dateKey}
-      className={`h-9 min-h-0 overflow-hidden rounded-lg border p-1 ${
-        sunday ? "border-red-100 bg-red-50" : "border-slate-100 bg-white"
-      } ${today ? "ring-2 ring-violet-400" : ""}`}
-    >
-      <div
-        className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
-          sunday ? "bg-red-100 text-red-700" : "text-slate-700"
-        }`}
-      >
-        {day}
-      </div>
-
-      {sunday && (
-        <div className="mt-0.5 text-[9px] font-semibold text-red-600">
-          Sunday off
-        </div>
-      )}
-
-      {dayEvents.map((item) => (
-        <div
-          key={item.id}
-          title={item.title}
-          className={`mt-0.5 truncate rounded px-1 py-0.5 text-[9px] font-semibold ${
-            item.type === "holiday"
-              ? "bg-amber-100 text-amber-800"
-              : "bg-violet-100 text-violet-800"
-          }`}
-        >
-          {item.title}
-        </div>
-      ))}
-    </div>
-  );
-})}
+                    {getCalendarDays().map((day, index) => {
+                      if (!day) return <div key={`empty-${index}`} className="min-h-16 rounded-xl bg-slate-50/60 sm:min-h-20" />;
+                      const dateKey = formatCalendarDate(day);
+                      const sunday = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day).getDay() === 0;
+                      const today = dateKey === new Date().toLocaleDateString("en-CA");
+                      const dayEvents = events.filter((item) => item.date === dateKey);
+                      return <div key={dateKey} className={`min-h-16 overflow-hidden rounded-xl border p-1.5 sm:min-h-20 sm:p-2 ${sunday ? "border-red-100 bg-red-50" : "border-slate-100 bg-white"} ${today ? "ring-2 ring-violet-400" : ""}`}>
+                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${sunday ? "bg-red-100 text-red-700" : "text-slate-700"}`}>{day}</div>
+                        {sunday && <div className="mt-1 text-[10px] font-semibold text-red-600">Sunday off</div>}
+                        {dayEvents.map((item) => <div key={item.id} title={item.title} className={`mt-1 truncate rounded px-1 py-0.5 text-[10px] font-semibold ${item.type === "holiday" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{item.title}</div>)}
+                      </div>;
+                    })}
                   </div>
 
-                  <div className="mt-3 border-t border-slate-100 pt-3">
+                  <div className="mt-5 border-t border-slate-100 pt-4">
                     <h3 className="mb-2 text-sm font-bold text-slate-800">Events this month</h3>
                     {events.filter((item) => item.date.startsWith(`${calendarDate.getFullYear()}-${String(calendarDate.getMonth()+1).padStart(2,"0")}`)).length === 0 ? <p className="text-xs text-slate-400">No holidays or events added for this month.</p> : <div className="space-y-2">{events.filter((item) => item.date.startsWith(`${calendarDate.getFullYear()}-${String(calendarDate.getMonth()+1).padStart(2,"0")}`)).sort((a,b) => a.date.localeCompare(b.date)).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{item.title}</p><p className="text-xs text-slate-500">{new Date(`${item.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · {item.type === "holiday" ? "Holiday" : "Event"}</p></div><button type="button" onClick={() => setEvents((current) => current.filter((entry) => entry.id !== item.id))} className="rounded-lg p-2 text-red-500 hover:bg-red-50" aria-label={`Delete ${item.title}`}><X size={15} /></button></div>)}</div>}
                   </div>
@@ -818,7 +1034,7 @@ async function addEmployee(event) {
             {/* TAB 2: EMPLOYEE MANAGEMENT */}
             {(activeTab === "employees" || activeTab === "dashboard") && (
               <section className="mt-6 overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30 backdrop-blur-xs">
-                <div className="flex flex-wrap items-center justify-between gap-4 p-4 border-b border-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-4 p-6 border-b border-slate-100">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">
                       {activeTab === "employees" ? "Employee Directory" : "Today's Workforce Status"}
@@ -923,7 +1139,7 @@ async function addEmployee(event) {
             {/* LIVE EMPLOYEE LOCATIONS */}
             {(activeTab === "dashboard" || activeTab === "employees") && (
               <section className="mt-6 overflow-hidden rounded-3xl border border-indigo-100/70 bg-white/95 shadow-md shadow-indigo-100/30">
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-6">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Live Employee Locations</h2>
                     <p className="mt-1 text-xs text-slate-500">
@@ -933,7 +1149,7 @@ async function addEmployee(event) {
                   <button
                     type="button"
                     onClick={loadLiveLocations}
-                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-1 text-xs font-bold text-white hover:bg-indigo-700"
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700"
                   >
                     <RefreshCw size={14} /> Refresh Locations
                   </button>
@@ -1117,6 +1333,11 @@ async function addEmployee(event) {
               </section>
             )}
 
+            {/* SUPER ADMIN: BRANCH MANAGEMENT */}
+            {activeTab === "branches" && isSuperAdmin && (
+              <BranchManagement API={API} employees={employees} onRefresh={loadDashboard} />
+            )}
+
             {/* TAB 4: SETTINGS */}
             {activeTab === "settings" && (
               <section className="rounded-3xl border border-indigo-100/70 bg-white/95 p-6 shadow-md shadow-indigo-100/30 backdrop-blur-xs sm:p-8">
@@ -1162,21 +1383,40 @@ async function addEmployee(event) {
 
       {/* Add Employee Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-3 sm:p-4 backdrop-blur-xs">
-          <div className="my-3 sm:my-6 w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-3xl bg-white p-4 sm:p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-xs">
+          <div className="my-8 w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Add New Employee</h2>
                 <p className="mt-1 text-xs text-slate-500">Employee record will be stored in MongoDB.</p>
               </div>
               <button
-                onClick={() => { stopEnrollmentCamera(); setFaceDescriptor(null); setFaceStatus(""); setShowForm(false); }}
+                onClick={() => { stopEnrollmentCamera(); setFaceDescriptor(null); setFaceStatus(""); setSelectedBranchId(""); setShowForm(false); }}
                 className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={addEmployee} className="grid gap-4 sm:grid-cols-2">
+              {isSuperAdmin && (
+                <label className="block sm:col-span-2">
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-700">Assign Employee to Branch</span>
+                  <select
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                  >
+                    <option value="">Select Branch</option>
+                    {branchOptions.filter((branch) => branch.isActive).map((branch) => (
+                      <option key={branch._id} value={branch._id}>{branch.name} ({branch.code})</option>
+                    ))}
+                  </select>
+                  {branchOptions.filter((branch) => branch.isActive).length === 0 && (
+                    <span className="mt-1 block text-xs text-amber-700">Pehle Branch Management mein active branch create karo.</span>
+                  )}
+                </label>
+              )}
               {[
                 ["name", "Full name", "text"],
                 ["employeeId", "Employee ID", "text"],
@@ -1230,16 +1470,10 @@ async function addEmployee(event) {
 </div>
                 </label>
               ))}
-              <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-3 sm:p-4">
-                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
-                <p className="mb-2 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
-                 <video
-                     ref={enrollmentVideoRef}
-                             autoPlay
-                              muted
-                                playsInline
-                           className="mb-3 h-40 w-full max-w-md mx-auto rounded-xl bg-slate-950 object-cover"
-                    />
+              <div className="sm:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-violet-950"><ScanFace size={18} /> Face Registration <span className={faceDescriptor ? "ml-auto text-emerald-700" : "ml-auto text-amber-700"}>{faceDescriptor ? "Face captured ✓" : "Required"}</span></div>
+                <p className="mb-3 text-xs leading-5 text-slate-600">Register the employee's face for secure attendance verification.</p>
+                <video ref={enrollmentVideoRef} autoPlay muted playsInline className="mb-3 h-20 max-h-20 w-full max-w-xs rounded-xl bg-slate-950 object-cover" />
                 {faceStatus && <p className="mb-3 text-xs text-slate-700" role="status">{faceStatus}</p>}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={startEnrollmentCamera} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-800"><Camera size={15}/> Open Camera</button>
@@ -1247,10 +1481,10 @@ async function addEmployee(event) {
                   <button type="button" onClick={() => { setFaceDescriptor(null); setFaceStatus("Face capture reset karein."); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Retake</button>
                 </div>
               </div>
-              <div className="mt-2 flex flex-wrap justify-end gap-3 sm:col-span-2">
+              <div className="mt-2 flex justify-end gap-3 sm:col-span-2">
                 <button
                   type="button"
-                  onClick={() => { stopEnrollmentCamera(); setFaceDescriptor(null); setShowForm(false); }}
+                  onClick={() => { stopEnrollmentCamera(); setFaceDescriptor(null); setSelectedBranchId(""); setShowForm(false); }}
                   className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
@@ -1427,6 +1661,3 @@ onSubmit={async (e) => {
     </div>
   );
 }
-
-
-
