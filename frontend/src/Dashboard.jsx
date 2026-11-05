@@ -1222,10 +1222,14 @@ const captureAndSubmit = async () => {
                     {actionCards.map((item) => {
                       const Icon = item.icon;
                       return (
-                        <button
-                          key={item.key}
-                          disabled={item.disabled || busy }
-                          onClick={() => openCamera(item.key)}
+                       <button
+                      type="button"
+                            key={item.key}
+                           disabled={item.disabled || busy}
+                            onClick={() => {
+                         if (item.disabled || busy) return;
+                        openCamera(item.key);
+                           }}
                           className={`group relative flex flex-col justify-between rounded-2xl p-5 text-left transition duration-200 active:scale-[0.98] border ${
                             item.disabled
                               ? "bg-slate-50/90 text-slate-500 border-slate-200/80 cursor-not-allowed shadow-xs"
