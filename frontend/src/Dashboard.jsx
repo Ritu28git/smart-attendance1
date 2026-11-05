@@ -612,7 +612,7 @@ const captureAndSubmit = async () => {
     }
 
     stopCamera();
-    await loadData();
+    void loadData();
 
   } catch (err) {
     setCameraError(
@@ -1224,7 +1224,7 @@ const captureAndSubmit = async () => {
                       return (
                         <button
                           key={item.key}
-                          disabled={item.disabled || busy}
+                          disabled={item.disabled || busy }
                           onClick={() => openCamera(item.key)}
                           className={`group relative flex flex-col justify-between rounded-2xl p-5 text-left transition duration-200 active:scale-[0.98] border ${
                             item.disabled
